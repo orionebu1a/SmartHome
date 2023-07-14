@@ -1,6 +1,7 @@
 package org.example;
 
 
+import com.sun.media.jfxmedia.events.PlayerEvent;
 import sun.misc.BASE64Decoder;
 
 import java.io.*;
@@ -157,20 +158,75 @@ public class Main {
         }
     }
 
-    public static void
+    public static class SmartDevice{
+        byte dev_type;
+        byte[] dev_name;
 
+        byte[] dev_props;
+
+        int dev_code;
+
+        public SmartDevice(byte type, byte[] dev_name, byte[] dev_props, int dev_code) {
+            this.dev_type = type;
+            this.dev_name = dev_name;
+            this.dev_props = dev_props;
+            this.dev_code = dev_code;
+        }
+    }
+
+    public static void whoIsHere(String adressStr, HttpURLConnection httpURLConnection){
+        try (DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream())) {
+            Payload payload = new Payload(Integer.parseInt(adressStr), 16383, 1, (byte)0x01, (byte)0x01, new Payload.Device("s", new byte[0]).encode());
+            String encoded = new Packet(payload).encoder();
+            String rightEncoded = encoded.substring(0, encoded.length() - 1);
+            writer.write(rightEncoded.getBytes());
+            writer.flush();
+            writer.close();
+
+            BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
+            String line = input.readLine();
+            //Packet packet = new Packet();
+            //packet.decoder(line);
+            int responceCode = httpURLConnection.getResponseCode();
+            if(responceCode == 200){
+                int i = 0;
+                while(i < line.length()){
+                    int len = line.charAt(i);
+                    String current = line.substring(i + 1, i + 1 + len);
+                    i = i + len + 1;
+                    Packet packet = new Packet();
+                    packet.decoder(current);
+                    byte[] cmd_body = packet.payload.cmd_body;
+                    int dev_name_length = cmd_body[0];
+                    byte[] dev_name = Arrays.copyOfRange(cmd_body, 1, dev_name_length + 1);
+                    byte[] dev_props = Arrays.copyOfRange(cmd_body, dev_name_length + 2, cmd_body.length - 1);
+                    SmartDevice newDevice = new SmartDevice(packet.payload.dev_type, dev_name, dev_props, payload.src);
+                    devices.add(newDevice);
+                }
+            }
+            if(responceCode == 204){
+                System.exit(0);
+            }
+            else{
+                System.exit(99);
+            }
+
+        }
+        catch(Exception e){
+            System.exit(99);
+        }
+    }
+    public static String smartHomeName = "smartHome";
     private static boolean working = true;
     private static ArrayList<SmartDevice> devices = new ArrayList<SmartDevice>();
 
     public static void main(String[] args) {
         String urlStr = args[0];
         String adressStr = args[1];
-        //Payload payload = new Payload(Integer.parseInt(adressStr), 16383, 1, (byte)0x01, (byte)0x01, new Payload.Device("s", new byte[0]).encode());
-        //String encoded = new Packet(payload).encoder();
-        //String rightEncoded = encoded.substring(0, encoded.length() - 1);
+        //
         HttpURLConnection httpURLConnection = connect(urlStr, adressStr);
-        whoIsHere();
-        try (DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream())) {
+        whoIsHere(adressStr, httpURLConnection);
+        /*try (DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream())) {
             int responceCode = httpURLConnection.getResponseCode();
             while(responceCode == 200){
 
@@ -202,7 +258,7 @@ public class Main {
         }
         finally {
             httpURLConnection.disconnect();
-        }
+        }*/
         System.exit(0);
     }
 
