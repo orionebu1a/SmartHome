@@ -5,6 +5,7 @@ import sun.misc.BASE64Decoder;
 
 import java.io.*;
 import java.net.*;
+import java.util.Arrays;
 import java.util.Base64;
 
 
@@ -26,6 +27,25 @@ public class Main {
             System.arraycopy(p, 0, res, 1, p.length);
             res[p.length + 1] = calculateCRC8(p);
             return(Base64.getUrlEncoder().encodeToString(res));
+        }
+
+        public Packet(String coded){
+            byte[] decoded = Base64.getUrlDecoder().decode(coded);
+            byte[] payload = Arrays.copyOfRange(decoded, 1, decoded.length - 1);
+            byte controlSum = calculateCRC8(payload);
+            int i = 0;
+            int[] src = new int[1];
+            int[] dst = new int[1];
+            int[] serial = new int[1];
+            i = Payload.decode128(src, i, payload);
+            i = Payload.decode128(dst, i, payload);
+            i = Payload.decode128(serial, i, payload);
+            byte dev_type = payload[i];
+            i++;
+            byte cmd = payload[i];
+            i++;
+            byte[] cmd_body = new byte[payload.length - i];
+            cmd_body = Arrays.copyOfRange(payload, i, payload.length - 1);
         }
     }
 
@@ -83,7 +103,7 @@ public class Main {
                 i++;
                 return i;
             } else {
-                res[i] = (byte) (128 | (num % 128));
+                res[i] = (byte) (num);
                 i++;
                 return i;
             }
@@ -128,20 +148,15 @@ public class Main {
 
 
     public static void main(String[] args) {
-        int num = 1560, i = 0;
-        int result[] = new int[1];
-        byte[] res = new byte[2];
-        Payload.encode128(num, i, res);
-        i = 0;
-        Payload.decode128(result, i, res);
-        System.out.println(result[0]);
-        /*String urlStr = args[0];
+        String urlStr = args[0];
         String adressStr = args[1];
-        String encoded = new Packet(new Payload(Integer.parseInt(adressStr, 16), 0x3FFF, 1, (byte)0x01, (byte)0x01, new Payload.Device("smartHub", new byte[0]).encode())).encoder();
-
+        Payload payload = new Payload(Integer.parseInt(adressStr), 16383, 1, (byte)0x01, (byte)0x01, new Payload.Device("s", new byte[0]).encode());
+        String encoded = new Packet(payload).encoder();
+        String rightEncoded = encoded.substring(0, encoded.length() - 1);
+        //encoded = "";
         HttpURLConnection httpURLConnection = connect(urlStr, adressStr);
         try (DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream())) {
-            writer.write(encoded.getBytes());
+            writer.write(rightEncoded.getBytes());
             writer.flush();
             writer.close();
         }
@@ -149,12 +164,12 @@ public class Main {
             System.exit(99);
         }
 
-        StringBuilder content;
 
+        String line = "";
         try (BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()))) {
-            String line;
             line = input.readLine();
             System.out.println(line);
+            Packet packet = new Packet(line);
         }
         catch(Exception e){
             System.exit(99);
@@ -162,7 +177,7 @@ public class Main {
         finally {
             httpURLConnection.disconnect();
         }
-        System.exit(0);*/
+        System.exit(0);
     }
     public static HttpURLConnection connect(String urlStr, String adressStr){
         URL url = null;
