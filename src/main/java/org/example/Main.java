@@ -35,9 +35,8 @@ public class Main {
             return(Base64.getUrlEncoder().encodeToString(res));
         }
 
-        public boolean decoder(String coded){
-            byte[] decoded = Base64.getUrlDecoder().decode(coded);
-            byte[] payload = Arrays.copyOfRange(decoded, 1, decoded.length - 1);
+        public boolean decoder(byte[] payloadWithSum){
+            byte[] payload = Arrays.copyOfRange(payloadWithSum, 0, payloadWithSum.length - 1);
             byte controlSum = calculateCRC8(payload);
             int i = 0;
             int[] src = new int[1];
@@ -50,9 +49,8 @@ public class Main {
             i++;
             byte cmd = payload[i];
             i++;
-            byte[] cmd_body = new byte[payload.length - i];
-            cmd_body = Arrays.copyOfRange(payload, i, payload.length - 1);
-            byte controlSumInPacket = decoded[payload.length - 1];
+            byte[] cmd_body = Arrays.copyOfRange(payload, i, payload.length - 1);
+            byte controlSumInPacket = payloadWithSum[payloadWithSum.length - 1];
             if(controlSumInPacket != controlSum){
                 return false;
             }
@@ -158,18 +156,15 @@ public class Main {
         }
     }
 
+
+
     public static class SmartDevice{
         byte dev_type;
         byte[] dev_name;
-
-        byte[] dev_props;
-
         int dev_code;
 
-        public SmartDevice(byte type, byte[] dev_name, byte[] dev_props, int dev_code) {
+        public SmartDevice(byte type, int dev_code) {
             this.dev_type = type;
-            this.dev_name = dev_name;
-            this.dev_props = dev_props;
             this.dev_code = dev_code;
         }
     }
@@ -185,34 +180,34 @@ public class Main {
 
             BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
             String line = input.readLine();
+            byte[] decoded_line = Base64.getUrlDecoder().decode(line);
             //Packet packet = new Packet();
             //packet.decoder(line);
             int responceCode = httpURLConnection.getResponseCode();
             if(responceCode == 200){
                 int i = 0;
-                while(i < line.length()){
-                    int len = line.charAt(i);
-                    String current = line.substring(i + 1, i + 1 + len);
-                    i = i + len + 1;
+                while(i < decoded_line.length){
+                    int len = decoded_line[i];
+                    byte[] current = Arrays.copyOfRange(decoded_line, i + 1, i + len + 2);
+                    i = i + len + 2;
                     Packet packet = new Packet();
                     packet.decoder(current);
                     byte[] cmd_body = packet.payload.cmd_body;
                     int dev_name_length = cmd_body[0];
-                    byte[] dev_name = Arrays.copyOfRange(cmd_body, 1, dev_name_length + 1);
-                    byte[] dev_props = Arrays.copyOfRange(cmd_body, dev_name_length + 2, cmd_body.length - 1);
-                    SmartDevice newDevice = new SmartDevice(packet.payload.dev_type, dev_name, dev_props, payload.src);
+                    //byte[] dev_name = Arrays.copyOfRange(cmd_body, 1, dev_name_length + 1);
+                    //byte[] dev_props = Arrays.copyOfRange(cmd_body, dev_name_length + 2, cmd_body.length - 1);
+                    SmartDevice newDevice = new SmartDevice(packet.payload.dev_type, payload.src);
                     devices.add(newDevice);
                 }
             }
-            if(responceCode == 204){
+            else if(responceCode == 204){
                 System.exit(0);
             }
             else{
                 System.exit(99);
             }
-
         }
-        catch(Exception e){
+        catch(IOException e){
             System.exit(99);
         }
     }
