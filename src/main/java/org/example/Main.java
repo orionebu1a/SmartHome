@@ -3,6 +3,7 @@ package org.example;
 
 import com.sun.media.jfxmedia.events.PlayerEvent;
 import sun.misc.BASE64Decoder;
+import sun.security.util.ArrayUtil;
 
 import java.io.*;
 import java.net.*;
@@ -27,14 +28,14 @@ public class Main {
             this.payload = null;
         }
 
-        public String encoder(){
+        public byte[] encoder(){
             byte[] p = payload.encoder();
             byte[] res = new byte[p.length + 2];
             res[0] = (byte)p.length;
             System.arraycopy(p, 0, res, 1, p.length);
             res[p.length + 1] = calculateCRC8(p);
             counter++;
-            return(Base64.getUrlEncoder().encodeToString(res));
+            return(res);
         }
 
         public boolean decoder(byte[] payloadWithSum){
@@ -327,7 +328,7 @@ public class Main {
             httpURLConnection = connect(urlStr, adressStr);
             DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream());
             Payload payload = new Payload(Integer.parseInt(adressStr), 16383, counter, (byte)0x01, (byte)0x01, new Payload.Device("s", new byte[0]).encode());
-            String encoded = new Packet(payload).encoder();
+            String encoded = new String(Base64.getUrlEncoder().encode((new Packet(payload)).encoder()));
             String rightEncoded = encoded.substring(0, encoded.length() - 1);
             writer.write(rightEncoded.getBytes());
             writer.flush();
@@ -340,21 +341,34 @@ public class Main {
     }
 
     public static void getFirstStatus(SmartDevice device){
+        Payload payload = new Payload(Integer.parseInt(adressStr), device.getDeviceInfo().dev_code, counter, device.getDeviceInfo().type, (byte)0x03, new byte[0]);
+        byte[] request = new Packet(payload).encoder();
+        if(request[request.length - 1] == '='){
+            request = Arrays.copyOfRange(request, 0, request.length - 1);
+        }
+        byte[] resRequest = Arrays.copyOf(fullRequest, fullRequest.length + request.length);
+        System.arraycopy(request, 0, resRequest, fullRequest.length, request.length);
+        fullRequest = resRequest;
+    }
+
+    private static void executePost() {
+        if(fullRequest.length == 0){
+            return;
+        }
         try{
             httpURLConnection = connect(urlStr, adressStr);
             DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream());
-            Payload payload = new Payload(Integer.parseInt(adressStr), device.getDeviceInfo().dev_code, counter, device.getDeviceInfo().type, (byte)0x03, new byte[0]);
-            String encoded = new Packet(payload).encoder();
-            String rightEncoded = encoded.substring(0, encoded.length());
-            if(encoded.charAt(encoded.length() - 1) == '='){
-                rightEncoded = encoded.substring(0, encoded.length() - 1);
+            String coded = new String(Base64.getUrlEncoder().encode(fullRequest));
+            if(coded.charAt(coded.length() - 1) == '='){
+                coded = coded.substring(0, coded.length() - 1);
             }
-            writer.write(rightEncoded.getBytes());
+            writer.write(coded.getBytes());
             writer.flush();
             writer.close();
+            fullRequest = new byte[0];
         }
         catch(IOException e){
-            e.printStackTrace();//delete
+            e.printStackTrace();
             System.exit(99);
         }
     }
@@ -463,9 +477,8 @@ public class Main {
 
     private static String urlStr;
 
-    private static String request;
+    private static byte[] fullRequest = new byte[0];
 
-    //private static DataOutputStream writer;
 
     public static void main(String[] args) {
         urlStr = args[0];
@@ -524,9 +537,9 @@ public class Main {
                 if(device.getDeviceInfo().getStatus == false){
                     device.getDeviceInfo().getStatus = true;
                     getFirstStatus(device);
-                    break;
                 }
             }
+            executePost();
         }
         if(responceCode == 204){
             httpURLConnection.disconnect();
