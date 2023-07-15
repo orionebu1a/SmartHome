@@ -51,7 +51,7 @@ public class Main {
             i++;
             byte cmd = payload[i];
             i++;
-            byte[] cmd_body = Arrays.copyOfRange(payload, i, payload.length - 1);
+            byte[] cmd_body = Arrays.copyOfRange(payload, i, payload.length);
             byte controlSumInPacket = payloadWithSum[payloadWithSum.length - 1];
             if(controlSumInPacket != controlSum){
                 return false;
@@ -197,6 +197,8 @@ public class Main {
         public byte type;
         public int dev_code;
         public boolean getStatus;
+
+        public String name;
     }
 
     public static interface SmartDevice{
@@ -206,13 +208,16 @@ public class Main {
     }
 
     public static class Switch implements SmartDevice{
+        private boolean condition;
         private DeviceInfo deviceInfo;
 
-        public Switch(byte type, int dev_code, byte[] cmd_body) {
+        public Switch(byte type, int dev_code, byte[] cmd_body, String name) {
             this.deviceInfo = new DeviceInfo();
             this.deviceInfo.type = type;
             this.deviceInfo.dev_code = dev_code;
             this.deviceInfo.getStatus = false;
+            this.deviceInfo.name = name;
+
         }
 
         @Override
@@ -227,13 +232,15 @@ public class Main {
     }
 
     public static class Lamp implements SmartDevice {
+        private boolean condition;
         private DeviceInfo deviceInfo;
 
-        public Lamp(byte type, int dev_code, byte[] cmd_body) {
+        public Lamp(byte type, int dev_code, byte[] cmd_body, String name) {
             this.deviceInfo = new DeviceInfo();
             this.deviceInfo.type = type;
             this.deviceInfo.dev_code = dev_code;
             this.deviceInfo.getStatus = false;
+            this.deviceInfo.name = name;
         }
 
         @Override
@@ -248,14 +255,16 @@ public class Main {
     }
 
     public static class Socket implements SmartDevice {
+        private boolean condition;
 
         private DeviceInfo deviceInfo;
 
-        public Socket(byte type, int dev_code, byte[] cmd_body) {
+        public Socket(byte type, int dev_code, byte[] cmd_body, String name) {
             this.deviceInfo = new DeviceInfo();
             this.deviceInfo.type = type;
             this.deviceInfo.dev_code = dev_code;
             this.deviceInfo.getStatus = false;
+            this.deviceInfo.name = name;
         }
 
         @Override
@@ -272,11 +281,12 @@ public class Main {
     public static class EnvSensor implements SmartDevice {
         private DeviceInfo deviceInfo;
 
-        public EnvSensor(byte type, int dev_code, byte[] cmd_body) {
+        public EnvSensor(byte type, int dev_code, byte[] cmd_body, String name) {
             this.deviceInfo = new DeviceInfo();
             this.deviceInfo.type = type;
             this.deviceInfo.dev_code = dev_code;
             this.deviceInfo.getStatus = false;
+            this.deviceInfo.name = name;
         }
 
         @Override
@@ -293,11 +303,12 @@ public class Main {
     public static class Clock implements SmartDevice {
         private DeviceInfo deviceInfo;
 
-        public Clock(byte type, int dev_code, byte[] cmd_body) {
+        public Clock(byte type, int dev_code, byte[] cmd_body, String name) {
             this.deviceInfo = new DeviceInfo();
             this.deviceInfo.type = type;
             this.deviceInfo.dev_code = dev_code;
             this.deviceInfo.getStatus = false;
+            this.deviceInfo.name = name;
         }
 
         @Override
@@ -343,7 +354,7 @@ public class Main {
             writer.close();
         }
         catch(IOException e){
-            e.printStackTrace();
+            e.printStackTrace();//delete
             System.exit(99);
         }
     }
@@ -352,28 +363,88 @@ public class Main {
 
     }
 
+    private static void replyWhoIsHere(Packet packet) {
+    }
+
+    private static void setStatus(Packet packet) {
+    }
+
+    private static void status(Packet packet) {
+        byte dev_type = packet.payload.dev_type;
+        byte[] cmd_body = packet.payload.cmd_body;
+        switch (dev_type){
+            case 2:
+                break;
+            case 3:
+                for(SmartDevice device : devices){
+                    if(device.getDeviceInfo().dev_code == packet.payload.src){
+                        Switch deviceSwitch = (Switch)device;
+                        if(cmd_body[0] == 0){
+                            deviceSwitch.condition = false;
+                        }
+                        else{
+                            deviceSwitch.condition = true;
+                        }
+                    }
+                }
+                break;
+            case 4:
+                for(SmartDevice device : devices){
+                    if(device.getDeviceInfo().dev_code == packet.payload.src){
+                        Lamp deviceSwitch = (Lamp)device;
+                        if(cmd_body[0] == 0){
+                            deviceSwitch.condition = false;
+                        }
+                        else{
+                            deviceSwitch.condition = true;
+                        }
+                    }
+                }
+                break;
+            case 5:
+                for(SmartDevice device : devices){
+                    if(device.getDeviceInfo().dev_code == packet.payload.src){
+                        Socket deviceSwitch = (Socket)device;
+                        if(cmd_body[0] == 0){
+                            deviceSwitch.condition = false;
+                        }
+                        else{
+                            deviceSwitch.condition = true;
+                        }
+                    }
+                }
+                break;
+            case 6:
+
+                break;
+        }
+    }
+
+    private static void getStatus(Packet packet) {
+    }
+
     public static void addDevice(Packet packet){
         SmartDevice newDevice = null;
         byte[] cmd_body = packet.payload.cmd_body;
         byte dev_type = packet.payload.dev_type;
-        //int dev_name_length = cmd_body[0];
-        //byte[] dev_name = Arrays.copyOfRange(cmd_body, 1, dev_name_length + 1);
+        int dev_name_length = cmd_body[0];
+        byte[] dev_name = Arrays.copyOfRange(cmd_body, 1, dev_name_length + 1);
         //byte[] dev_props = Arrays.copyOfRange(cmd_body, dev_name_length + 2, cmd_body.length - 1);
         switch (dev_type){
             case 2:
-                newDevice = new EnvSensor(packet.payload.dev_type, packet.payload.src, cmd_body);
+                newDevice = new EnvSensor(packet.payload.dev_type, packet.payload.src, cmd_body, new String(dev_name));
                 break;
             case 3:
-                newDevice = new Switch(packet.payload.dev_type, packet.payload.src, cmd_body);
+                newDevice = new Switch(packet.payload.dev_type, packet.payload.src, cmd_body, new String(dev_name));
                 break;
             case 4:
-                newDevice = new Lamp(packet.payload.dev_type, packet.payload.src, cmd_body);
+                newDevice = new Lamp(packet.payload.dev_type, packet.payload.src, cmd_body, new String(dev_name));
                 break;
             case 5:
-                newDevice = new Socket(packet.payload.dev_type, packet.payload.src, cmd_body);
+                newDevice = new Socket(packet.payload.dev_type, packet.payload.src, cmd_body, new String(dev_name));
                 break;
             case 6:
-                newDevice = new Clock(packet.payload.dev_type, packet.payload.src, cmd_body);
+                newDevice = new Clock(packet.payload.dev_type, packet.payload.src, cmd_body, new String(dev_name));
                 break;
         }
         devices.add(newDevice);
@@ -391,6 +462,8 @@ public class Main {
     private static HttpURLConnection httpURLConnection;
 
     private static String urlStr;
+
+    private static String request;
 
     //private static DataOutputStream writer;
 
@@ -465,19 +538,6 @@ public class Main {
         }
         System.exit(0);
     }
-
-    private static void replyWhoIsHere(Packet packet) {
-    }
-
-    private static void setStatus(Packet packet) {
-    }
-
-    private static void status(Packet packet) {
-    }
-
-    private static void getStatus(Packet packet) {
-    }
-
 
     public static HttpURLConnection connect(String urlStr, String adressStr){
         URL url = null;
