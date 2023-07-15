@@ -212,13 +212,25 @@ public class Main {
         private boolean condition;
         private DeviceInfo deviceInfo;
 
+        ArrayList<String> dev_names = new ArrayList<String>();
+
         public Switch(byte type, int dev_code, byte[] cmd_body, String name) {
+            int dev_name_length = cmd_body[0];
+            byte[] dev_props = Arrays.copyOfRange(cmd_body, dev_name_length + 2, cmd_body.length);
+            int i = 0, length;
+            byte[] dev_name;
+            while(i < dev_props.length){
+                length = dev_props[0];
+                dev_name = Arrays.copyOfRange(dev_props, i + 1, i + length + 1);
+                String str_name = new String(dev_name);
+                dev_names.add(str_name);
+                i = i + length + 1;
+            }
             this.deviceInfo = new DeviceInfo();
             this.deviceInfo.type = type;
             this.deviceInfo.dev_code = dev_code;
             this.deviceInfo.getStatus = false;
             this.deviceInfo.name = name;
-
         }
 
         @Override
@@ -228,7 +240,20 @@ public class Main {
 
         @Override
         public void doAction() {
-
+            for(String turnable : dev_names){
+                for(SmartDevice device : devices){
+                    if(device.getDeviceInfo().name.equals(turnable)){
+                        Payload payload = new Payload(Integer.parseInt(adressStr), device.getDeviceInfo().dev_code, counter, device.getDeviceInfo().type, (byte)0x05, (condition) ? new byte[]{1} : new byte[]{0});
+                        byte[] request = new Packet(payload).encoder();
+                        if(request[request.length - 1] == '='){
+                            request = Arrays.copyOfRange(request, 0, request.length - 1);
+                        }
+                        byte[] resRequest = Arrays.copyOf(fullRequest, fullRequest.length + request.length);
+                        System.arraycopy(request, 0, resRequest, fullRequest.length, request.length);
+                        fullRequest = resRequest;
+                    }
+                }
+            }
         }
     }
 
@@ -359,7 +384,7 @@ public class Main {
             httpURLConnection = connect(urlStr, adressStr);
             DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream());
             String coded = new String(Base64.getUrlEncoder().encode(fullRequest));
-            if(coded.charAt(coded.length() - 1) == '='){
+            while(coded.charAt(coded.length() - 1) == '='){
                 coded = coded.substring(0, coded.length() - 1);
             }
             writer.write(coded.getBytes());
@@ -395,9 +420,11 @@ public class Main {
                         Switch deviceSwitch = (Switch)device;
                         if(cmd_body[0] == 0){
                             deviceSwitch.condition = false;
+                            deviceSwitch.doAction();
                         }
                         else{
                             deviceSwitch.condition = true;
+                            deviceSwitch.doAction();
                         }
                     }
                 }
@@ -443,7 +470,6 @@ public class Main {
         byte dev_type = packet.payload.dev_type;
         int dev_name_length = cmd_body[0];
         byte[] dev_name = Arrays.copyOfRange(cmd_body, 1, dev_name_length + 1);
-        //byte[] dev_props = Arrays.copyOfRange(cmd_body, dev_name_length + 2, cmd_body.length - 1);
         switch (dev_type){
             case 2:
                 newDevice = new EnvSensor(packet.payload.dev_type, packet.payload.src, cmd_body, new String(dev_name));
