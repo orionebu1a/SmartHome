@@ -158,14 +158,86 @@ public class Main {
 
 
 
-    public static class SmartDevice{
-        byte dev_type;
-        byte[] dev_name;
-        int dev_code;
+    public static interface SmartDevice{
+        public void doAction();
+    }
 
-        public SmartDevice(byte type, int dev_code) {
-            this.dev_type = type;
+    public static class Switch implements SmartDevice{
+
+        private byte type;
+        private int dev_code;
+
+        public Switch(byte type, int dev_code, byte[] cmd_body) {
+            this.type = type;
             this.dev_code = dev_code;
+        }
+
+        @Override
+        public void doAction() {
+
+        }
+    }
+
+    public static class Lamp implements SmartDevice {
+
+        private byte type;
+        private int dev_code;
+
+        public Lamp(byte type, int dev_code, byte[] cmd_body) {
+            this.type = type;
+            this.dev_code = dev_code;
+        }
+
+        @Override
+        public void doAction() {
+
+        }
+    }
+
+    public static class Socket implements SmartDevice {
+
+        private byte type;
+        private int dev_code;
+
+        public Socket(byte type, int dev_code, byte[] cmd_body) {
+            this.type = type;
+            this.dev_code = dev_code;
+        }
+
+        @Override
+        public void doAction() {
+
+        }
+    }
+
+    public static class EnvSensor implements SmartDevice {
+
+        private byte type;
+        private int dev_code;
+
+        public EnvSensor(byte type, int dev_code, byte[] cmd_body) {
+            this.type = type;
+            this.dev_code = dev_code;
+        }
+
+        @Override
+        public void doAction() {
+
+        }
+    }
+
+    public static class Clock implements SmartDevice {
+        private byte type;
+        private int dev_code;
+
+        public Clock(byte type, int dev_code, byte[] cmd_body) {
+            this.type = type;
+            this.dev_code = dev_code;
+        }
+
+        @Override
+        public void doAction() {
+
         }
     }
 
@@ -177,40 +249,39 @@ public class Main {
             writer.write(rightEncoded.getBytes());
             writer.flush();
             writer.close();
-
-            BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
-            String line = input.readLine();
-            byte[] decoded_line = Base64.getUrlDecoder().decode(line);
-            //Packet packet = new Packet();
-            //packet.decoder(line);
-            int responceCode = httpURLConnection.getResponseCode();
-            if(responceCode == 200){
-                int i = 0;
-                while(i < decoded_line.length){
-                    int len = decoded_line[i];
-                    byte[] current = Arrays.copyOfRange(decoded_line, i + 1, i + len + 2);
-                    i = i + len + 2;
-                    Packet packet = new Packet();
-                    packet.decoder(current);
-                    byte[] cmd_body = packet.payload.cmd_body;
-                    int dev_name_length = cmd_body[0];
-                    //byte[] dev_name = Arrays.copyOfRange(cmd_body, 1, dev_name_length + 1);
-                    //byte[] dev_props = Arrays.copyOfRange(cmd_body, dev_name_length + 2, cmd_body.length - 1);
-                    SmartDevice newDevice = new SmartDevice(packet.payload.dev_type, payload.src);
-                    devices.add(newDevice);
-                }
-            }
-            else if(responceCode == 204){
-                System.exit(0);
-            }
-            else{
-                System.exit(99);
-            }
         }
         catch(IOException e){
             System.exit(99);
         }
     }
+
+    public static void addDevice(Packet packet){
+        SmartDevice newDevice = null;
+        byte[] cmd_body = packet.payload.cmd_body;
+        byte dev_type = packet.payload.dev_type;
+        //int dev_name_length = cmd_body[0];
+        //byte[] dev_name = Arrays.copyOfRange(cmd_body, 1, dev_name_length + 1);
+        //byte[] dev_props = Arrays.copyOfRange(cmd_body, dev_name_length + 2, cmd_body.length - 1);
+        switch (dev_type){
+            case 2:
+                newDevice = new EnvSensor(packet.payload.dev_type, packet.payload.src, cmd_body);
+                break;
+            case 3:
+                newDevice = new Switch(packet.payload.dev_type, packet.payload.src, cmd_body);
+                break;
+            case 4:
+                newDevice = new Lamp(packet.payload.dev_type, packet.payload.src, cmd_body);
+                break;
+            case 5:
+                newDevice = new Socket(packet.payload.dev_type, packet.payload.src, cmd_body);
+                break;
+            case 6:
+                newDevice = new Clock(packet.payload.dev_type, packet.payload.src, cmd_body);
+                break;
+        }
+        devices.add(newDevice);
+    }
+
     public static String smartHomeName = "smartHome";
     private static boolean working = true;
     private static ArrayList<SmartDevice> devices = new ArrayList<SmartDevice>();
@@ -218,42 +289,55 @@ public class Main {
     public static void main(String[] args) {
         String urlStr = args[0];
         String adressStr = args[1];
-        //
         HttpURLConnection httpURLConnection = connect(urlStr, adressStr);
         whoIsHere(adressStr, httpURLConnection);
-        /*try (DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream())) {
+        try {
+            BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
             int responceCode = httpURLConnection.getResponseCode();
             while(responceCode == 200){
-
+                String line = input.readLine();
+                if(line == null){
+                    continue;
+                }
+                byte[] decoded_line = Base64.getUrlDecoder().decode(line);
+                int i = 0;
+                while(i < decoded_line.length){
+                    int len = decoded_line[i];
+                    byte[] current = Arrays.copyOfRange(decoded_line, i + 1, i + len + 2);
+                    i = i + len + 2;
+                    Packet packet = new Packet();
+                    packet.decoder(current);
+                    switch(packet.payload.cmd){
+                        case 1:
+                            break;
+                        case 2:
+                            addDevice(packet);
+                            break;
+                        case 3:
+                            break;
+                        case 4:
+                            break;
+                        case 5:
+                            break;
+                        case 6:
+                            writeTime(packet);
+                            break;
+                    }
+                }
                 responceCode = httpURLConnection.getResponseCode();
             }
             if(responceCode == 204){
+                httpURLConnection.disconnect();
                 System.exit(0);
             }
             else{
+                httpURLConnection.disconnect();
                 System.exit(99);
             }
-            writer.write(rightEncoded.getBytes());
-            writer.flush();
-            writer.close();
-        }
-        catch(Exception e){
-            System.exit(99);
-        }
-
-        Packet packet = new Packet();
-        String line = "";
-        try (BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()))) {
-            line = input.readLine();
-            System.out.println(line);
-            packet.decoder(line);
-        }
-        catch(Exception e){
-            System.exit(99);
-        }
-        finally {
+        } catch (IOException e) {
             httpURLConnection.disconnect();
-        }*/
+            System.exit(99);
+        }
         System.exit(0);
     }
 
@@ -291,7 +375,6 @@ public class Main {
                 }
             }
         }
-
         return crc;
     }
 }
