@@ -33,6 +33,7 @@ public class Main {
             res[0] = (byte)p.length;
             System.arraycopy(p, 0, res, 1, p.length);
             res[p.length + 1] = calculateCRC8(p);
+            counter++;
             return(Base64.getUrlEncoder().encodeToString(res));
         }
 
@@ -312,6 +313,7 @@ public class Main {
 
     public static void whoIsHere(){
         try{
+            httpURLConnection = connect(urlStr, adressStr);
             DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream());
             Payload payload = new Payload(Integer.parseInt(adressStr), 16383, counter, (byte)0x01, (byte)0x01, new Payload.Device("s", new byte[0]).encode());
             String encoded = new Packet(payload).encoder();
@@ -319,9 +321,9 @@ public class Main {
             writer.write(rightEncoded.getBytes());
             writer.flush();
             writer.close();
-            counter++;
         }
         catch(IOException e){
+            e.printStackTrace();
             System.exit(99);
         }
     }
@@ -332,13 +334,16 @@ public class Main {
             DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream());
             Payload payload = new Payload(Integer.parseInt(adressStr), device.getDeviceInfo().dev_code, counter, device.getDeviceInfo().type, (byte)0x03, new byte[0]);
             String encoded = new Packet(payload).encoder();
-            String rightEncoded = encoded.substring(0, encoded.length() - 1);
+            String rightEncoded = encoded.substring(0, encoded.length());
+            if(encoded.charAt(encoded.length() - 1) == '='){
+                rightEncoded = encoded.substring(0, encoded.length() - 1);
+            }
             writer.write(rightEncoded.getBytes());
             writer.flush();
             writer.close();
-            counter++;
         }
         catch(IOException e){
+            e.printStackTrace();
             System.exit(99);
         }
     }
@@ -348,7 +353,6 @@ public class Main {
     }
 
     public static void addDevice(Packet packet){
-        httpURLConnection = connect(urlStr, adressStr);
         SmartDevice newDevice = null;
         byte[] cmd_body = packet.payload.cmd_body;
         byte dev_type = packet.payload.dev_type;
@@ -373,7 +377,6 @@ public class Main {
                 break;
         }
         devices.add(newDevice);
-        //getFirstStatus(newDevice);
     }
 
     public static String smartHomeName = "smartHome";
@@ -400,16 +403,18 @@ public class Main {
         while(responceCode == 200){
             String line = null;
             try {
-                httpURLConnection = connect(urlStr, adressStr);
+                //httpURLConnection = connect(urlStr, adressStr);
                 BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
                 responceCode = httpURLConnection.getResponseCode();
                 line = input.readLine();
                 input.close();
             }
             catch (IOException e){
+                e.printStackTrace();
                 System.exit(99);
             }
             if(line == null){
+                httpURLConnection = connect(urlStr, adressStr);
                 continue;
             }
             byte[] decoded_line = Base64.getUrlDecoder().decode(line);
@@ -422,25 +427,31 @@ public class Main {
                 packet.decoder(current);
                 switch(packet.payload.cmd){
                     case 1:
+                        replyWhoIsHere(packet);
                         break;
                     case 2:
                         addDevice(packet);
                         break;
                     case 3:
+                        setStatus(packet);
                         break;
                     case 4:
+                        status(packet);
                         break;
                     case 5:
+                        getStatus(packet);
                         break;
                     case 6:
                         writeTime(packet);
                         break;
                 }
-                for(SmartDevice device : devices){
-                    if(device.getDeviceInfo().getStatus == false){
-                        device.getDeviceInfo().getStatus = true;
-                        getFirstStatus(device);
-                    }
+            }
+            httpURLConnection = connect(urlStr, adressStr);
+            for(SmartDevice device : devices){
+                if(device.getDeviceInfo().getStatus == false){
+                    device.getDeviceInfo().getStatus = true;
+                    getFirstStatus(device);
+                    break;
                 }
             }
         }
@@ -453,6 +464,18 @@ public class Main {
             System.exit(99);
         }
         System.exit(0);
+    }
+
+    private static void replyWhoIsHere(Packet packet) {
+    }
+
+    private static void setStatus(Packet packet) {
+    }
+
+    private static void status(Packet packet) {
+    }
+
+    private static void getStatus(Packet packet) {
     }
 
 
