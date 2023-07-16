@@ -242,6 +242,15 @@ public class Main {
             for(String turnable : dev_names){
                 for(SmartDevice device : devices){
                     if(device.getDeviceInfo().name.equals(turnable)){
+                        device.getDeviceInfo().getStatus = false;
+                        if(device.getDeviceInfo().type == 0x04){
+                            Lamp lamp = (Lamp)device;
+                            lamp.condition = condition;
+                        }
+                        else if(device.getDeviceInfo().type == 0x05){
+                            Socket socket = (Socket)device;
+                            socket.condition = condition;
+                        }
                         Payload payload = new Payload(Integer.parseInt(adressStr), device.getDeviceInfo().dev_code, counter, device.getDeviceInfo().type, (byte)0x05, (condition) ? new byte[]{1} : new byte[]{0});
                         byte[] request = new Packet(payload).encoder();
                         byte[] resRequest = Arrays.copyOf(fullRequest, fullRequest.length + request.length);
@@ -365,9 +374,6 @@ public class Main {
     public static void getFirstStatus(SmartDevice device){
         Payload payload = new Payload(Integer.parseInt(adressStr), device.getDeviceInfo().dev_code, counter, device.getDeviceInfo().type, (byte)0x03, new byte[0]);
         byte[] request = new Packet(payload).encoder();
-        if(request[request.length - 1] == '='){
-            request = Arrays.copyOfRange(request, 0, request.length - 1);
-        }
         byte[] resRequest = Arrays.copyOf(fullRequest, fullRequest.length + request.length);
         System.arraycopy(request, 0, resRequest, fullRequest.length, request.length);
         fullRequest = resRequest;
@@ -432,12 +438,15 @@ public class Main {
             case 4:
                 for(SmartDevice device : devices){
                     if(device.getDeviceInfo().dev_code == packet.payload.src){
-                        Lamp deviceSwitch = (Lamp)device;
-                        if(cmd_body[0] == 0){
-                            deviceSwitch.condition = false;
-                        }
-                        else{
-                            deviceSwitch.condition = true;
+                        Lamp lamp = (Lamp)device;
+                        boolean realCondition = packet.payload.cmd_body[0] == 0 ? false : true;
+                        if(realCondition != lamp.condition){
+                            lamp.deviceInfo.getStatus = false;
+                            Payload payload = new Payload(Integer.parseInt(adressStr), lamp.getDeviceInfo().dev_code, counter, lamp.getDeviceInfo().type, (byte)0x05, (lamp.condition) ? new byte[]{1} : new byte[]{0});
+                            byte[] request = new Packet(payload).encoder();
+                            byte[] resRequest = Arrays.copyOf(fullRequest, fullRequest.length + request.length);
+                            System.arraycopy(request, 0, resRequest, fullRequest.length, request.length);
+                            fullRequest = resRequest;
                         }
                     }
                 }
@@ -445,12 +454,15 @@ public class Main {
             case 5:
                 for(SmartDevice device : devices){
                     if(device.getDeviceInfo().dev_code == packet.payload.src){
-                        Socket deviceSwitch = (Socket)device;
-                        if(cmd_body[0] == 0){
-                            deviceSwitch.condition = false;
-                        }
-                        else{
-                            deviceSwitch.condition = true;
+                        Socket socket = (Socket)device;
+                        boolean realCondition = packet.payload.cmd_body[0] == 0 ? false : true;
+                        if(realCondition != socket.condition){
+                            socket.deviceInfo.getStatus = false;
+                            Payload payload = new Payload(Integer.parseInt(adressStr), socket.getDeviceInfo().dev_code, counter, socket.getDeviceInfo().type, (byte)0x05, (socket.condition) ? new byte[]{1} : new byte[]{0});
+                            byte[] request = new Packet(payload).encoder();
+                            byte[] resRequest = Arrays.copyOf(fullRequest, fullRequest.length + request.length);
+                            System.arraycopy(request, 0, resRequest, fullRequest.length, request.length);
+                            fullRequest = resRequest;
                         }
                     }
                 }
