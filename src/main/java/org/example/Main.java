@@ -116,8 +116,8 @@ public class Main {
             }
         }
 
-        public static int encode128_big(int num, int i, byte[] res) {
-            String str = Integer.toBinaryString(num);
+        public static int encode128_big(long num, int i, byte[] res) {
+            String str = Long.toBinaryString(num);
             int residue = str.length() % 7;
             if(str.length() % 7 != 0){
                 int newlength = str.length() + 7 - residue;
@@ -152,7 +152,7 @@ public class Main {
             return i;
         }
 
-        public static int decode128_time(long[] num, int i, byte[] res){
+        public static int decode128_big(long[] num, int i, byte[] res){
             num[0] = res[i];
             i++;
             if (num[0] < 0) {
@@ -328,10 +328,53 @@ public class Main {
         }
     }
 
+    private static boolean extractValueAtPosition(byte byteRepresentation, int position) {
+        return ((byteRepresentation) & (1 << (position - 1))) != 0;
+    }
+
     public static class EnvSensor implements SmartDevice {
+        public class Trigger{
+            public byte op;
+            public long value;
+            public String name;
+
+            public Trigger(byte op, long value, String name) {
+                this.op = op;
+                this.value = value;
+                this.name = name;
+            }
+        }
+        private ArrayList<Trigger> triggers = new ArrayList<Trigger>();
+        private boolean isTemperature = false;
+        private boolean isHumidity;
+        private boolean isIllumination;
+
+        private boolean isAirPollution;
         private DeviceInfo deviceInfo;
 
-        public EnvSensor(byte type, int dev_code, byte[] cmd_body, String name) {
+        public EnvSensor(byte type, int dev_code, byte[] cmdBodyWithName, String name) {
+            byte[] cmd_body = Arrays.copyOfRange(cmdBodyWithName, name.length() + 1, cmdBodyWithName.length);
+
+            this.isTemperature = extractValueAtPosition(cmd_body[0], 1);
+            this.isHumidity = extractValueAtPosition(cmd_body[0], 2);
+            this.isIllumination = extractValueAtPosition(cmd_body[0], 3);
+            this.isAirPollution = extractValueAtPosition(cmd_body[0], 4);
+
+            int i = 2;
+            byte triggers = cmd_body[1];
+            for(int j = 0; j < triggers; j++){
+                byte op = cmd_body[i];
+                i++;
+                long[] value = new long[1];
+                i = Payload.decode128_big(value, i, cmd_body);
+                int len = cmd_body[i];
+                i++;
+                byte[] name_dev = new byte[len];
+                System.arraycopy(cmd_body, i, name_dev, 0, len);
+                this.triggers.add(new Trigger(op, value[0], new String(name_dev)));
+                i = i + len;
+            }
+
             this.deviceInfo = new DeviceInfo();
             this.deviceInfo.type = type;
             this.deviceInfo.dev_code = dev_code;
@@ -426,7 +469,7 @@ public class Main {
     public static void writeTime(Packet packet){
         byte[] cmd_body = packet.payload.cmd_body;
         long[] num = new long[1];
-        Payload.decode128_time(num, 0, cmd_body);
+        Payload.decode128_big(num, 0, cmd_body);
         time = new Timestamp(num[0]);
     }
 
@@ -447,6 +490,16 @@ public class Main {
         byte[] cmd_body = packet.payload.cmd_body;
         switch (dev_type){
             case 2:
+                for(SmartDevice device : devices) {
+                    if (device.getDeviceInfo().dev_code == packet.payload.src) {
+                        int i = 0;
+                        EnvSensor envSensor = (EnvSensor) device;
+                        for(EnvSensor.Trigger trigger : envSensor.triggers){
+                            long[] value = new long[1];
+                            i = Payload.decode128_big(value, i, cmd_body);
+                        }
+                    }
+                }
                 break;
             case 3:
                 for(SmartDevice device : devices){
@@ -558,10 +611,11 @@ public class Main {
         while(responceCode == 200){
             String line = null;
             try {
-                BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
-                responceCode = httpURLConnection.getResponseCode();
-                line = input.readLine();
-                input.close();
+                //BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
+                //responceCode = httpURLConnection.getResponseCode();
+                //line = input.readLine();
+                line = "OAL_fwQCAghTRU5TT1IwMQ8EDGQGT1RIRVIxD7AJBk9USEVSMgCsjQYGT1RIRVIzCAAGT1RIRVI09w";
+                //input.close();
             }
             catch (Exception e){
                 System.exit(99);
