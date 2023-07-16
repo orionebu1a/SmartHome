@@ -1,10 +1,5 @@
 package org.example;
 
-
-import com.sun.media.jfxmedia.events.PlayerEvent;
-import sun.misc.BASE64Decoder;
-import sun.security.util.ArrayUtil;
-
 import java.io.*;
 import java.net.*;
 import java.sql.Timestamp;
@@ -121,6 +116,31 @@ public class Main {
             }
         }
 
+        public static int encode128_big(int num, int i, byte[] res) {
+            String str = Integer.toBinaryString(num);
+            int residue = str.length() % 7;
+            if(str.length() % 7 != 0){
+                int newlength = str.length() + 7 - residue;
+                String newStr = ("0000000" + str).substring(residue, newlength + residue);
+                str = newStr;
+            }
+            i = i + str.length() / 7;
+            i--;
+            for(int j = 0; j < str.length(); j = j + 7){
+                String cur = str.substring(j, j + 7);
+                if(j == 0){
+                    cur = "0" + cur;
+                }
+                else{
+                    cur = "1" + cur;
+                }
+                res[i] = (byte)(Integer.parseInt(cur, 2));
+                i--;
+            }
+            i = i + str.length() / 7 + 1;
+            return i;
+        }
+
         public static int decode128(int[] num, int i, byte[] res){
             num[0] = (int) res[i];
             i++;
@@ -174,13 +194,15 @@ public class Main {
             if(dst > 127){
                 dstAdd++;
             }
-            if(serial > 127){
+            int ser = serial;
+            while(ser > 127){
+                ser = ser / 128;
                 serAdd++;
             }
             byte[] res = new byte[cmd_body.length + 5 + srcAdd + dstAdd + serAdd];
             i = encode128(src, i, res);
             i = encode128(dst, i, res);
-            i = encode128(serial, i, res);
+            i = encode128_big(serial, i, res);
             res[i] = dev_type;
             i++;
             res[i] = cmd;
@@ -355,14 +377,16 @@ public class Main {
             httpURLConnection = connect(urlStr, adressStr);
             DataOutputStream writer = new DataOutputStream(httpURLConnection.getOutputStream());
             Payload payload = new Payload(Integer.parseInt(adressStr), 16383, counter, (byte)0x01, (byte)0x01, new Payload.Device("s", new byte[0]).encode());
-            String encoded = new String(Base64.getUrlEncoder().encode((new Packet(payload)).encoder()));
-            String rightEncoded = encoded.substring(0, encoded.length() - 1);
-            writer.write(rightEncoded.getBytes());
+            String coded = new String(Base64.getUrlEncoder().encode((new Packet(payload)).encoder()));
+            while(coded.charAt(coded.length() - 1) == '='){
+                coded = coded.substring(0, coded.length() - 1);
+            }
+            writer.write(coded.getBytes());
             writer.flush();
             writer.close();
             counter++;
         }
-        catch(Exception e){
+        catch(IOException e){
             System.exit(99);
         }
     }
@@ -407,7 +431,7 @@ public class Main {
     }
 
     private static void replyWhoIsHere(Packet packet) {
-        Payload payload = new Payload(Integer.parseInt(adressStr), packet.payload.src, counter, (byte)0x01, (byte)0x02, new byte[0]);
+        Payload payload = new Payload(Integer.parseInt(adressStr), 16383, counter, (byte)0x01, (byte)0x02, new byte[0]);
         byte[] request = new Packet(payload).encoder();
         byte[] resRequest = Arrays.copyOf(fullRequest, fullRequest.length + request.length);
         System.arraycopy(request, 0, resRequest, fullRequest.length, request.length);
