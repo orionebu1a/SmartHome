@@ -6,8 +6,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
-
-
+import java.util.Scanner;
 
 
 public class Main {
@@ -350,6 +349,13 @@ public class Main {
         private boolean isIllumination;
 
         private boolean isAirPollution;
+
+        private long temperature;
+        private long humidity;
+
+        private long illumination;
+
+        private long airPollution;
         private DeviceInfo deviceInfo;
 
         public EnvSensor(byte type, int dev_code, byte[] cmdBodyWithName, String name) {
@@ -490,16 +496,7 @@ public class Main {
         byte[] cmd_body = packet.payload.cmd_body;
         switch (dev_type){
             case 2:
-                for(SmartDevice device : devices) {
-                    if (device.getDeviceInfo().dev_code == packet.payload.src) {
-                        int i = 0;
-                        EnvSensor envSensor = (EnvSensor) device;
-                        for(EnvSensor.Trigger trigger : envSensor.triggers){
-                            long[] value = new long[1];
-                            i = Payload.decode128_big(value, i, cmd_body);
-                        }
-                    }
-                }
+                envStatusCheck(packet, cmd_body);
                 break;
             case 3:
                 for(SmartDevice device : devices){
@@ -550,6 +547,89 @@ public class Main {
                 break;
             case 6:
                 break;
+        }
+    }
+
+    private static void envStatusCheck(Packet packet, byte[] cmd_body) {
+        for(SmartDevice device : devices) {
+            if (device.getDeviceInfo().dev_code == packet.payload.src) {
+                int i = 1;
+                EnvSensor envSensor = (EnvSensor) device;
+                if(envSensor.isTemperature){
+                    long[] value = new long[1];
+                    i = Payload.decode128_big(value, i, cmd_body);
+                    envSensor.temperature = value[0];
+                }
+                if(envSensor.isHumidity){
+                    long[] value = new long[1];
+                    i = Payload.decode128_big(value, i, cmd_body);
+                    envSensor.humidity = value[0];
+                }
+                if(envSensor.isIllumination){
+                    long[] value = new long[1];
+                    i = Payload.decode128_big(value, i, cmd_body);
+                    envSensor.illumination = value[0];
+                }
+                if(envSensor.isAirPollution){
+                    long[] value = new long[1];
+                    i = Payload.decode128_big(value, i, cmd_body);
+                    envSensor.airPollution = value[0];
+                }
+                for(EnvSensor.Trigger trigger : envSensor.triggers){
+                    int typeOfSensor = extractValueAtPosition(trigger.op, 2) ? 1 : 0 + ((extractValueAtPosition(trigger.op, 3) ? 1 : 0)) * 2;
+                    boolean condition = extractValueAtPosition(trigger.op, 0);
+                    boolean above = extractValueAtPosition(trigger.op, 1);
+                    for(SmartDevice reactDevice : devices) {
+                        if (device.getDeviceInfo().name.equals(trigger.name)) {
+                            if(typeOfSensor == 0){
+                                if(above && envSensor.temperature > trigger.value){
+                                    switchStatus(reactDevice, condition);
+                                }
+                                else if(!above && envSensor.temperature < trigger.value){
+                                    switchStatus(reactDevice, condition);
+                                }
+                            }
+                            else if(typeOfSensor == 1){
+                                if(above && envSensor.humidity > trigger.value){
+                                    switchStatus(reactDevice, condition);
+                                }
+                                else if(!above && envSensor.humidity < trigger.value){
+                                    switchStatus(reactDevice, condition);
+                                }
+                            }
+                            else if(typeOfSensor == 2){
+                                if(above && envSensor.illumination > trigger.value){
+                                    switchStatus(reactDevice, condition);
+                                }
+                                else if(!above && envSensor.illumination < trigger.value){
+                                    switchStatus(reactDevice, condition);
+                                }
+                            }
+                            else if(typeOfSensor == 3){
+                                if(above && envSensor.airPollution > trigger.value){
+                                    switchStatus(reactDevice, condition);
+                                }
+                                else if(!above && envSensor.airPollution < trigger.value){
+                                    switchStatus(reactDevice, condition);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static void switchStatus(SmartDevice reactDevice, boolean condition) {
+        if(reactDevice.getDeviceInfo().type == 0x04){
+            Lamp lamp = (Lamp)reactDevice;
+            lamp.condition = condition;
+            lamp.deviceInfo.getStatus = false;
+        }
+        else if(reactDevice.getDeviceInfo().type == 0x05){
+            Lamp lamp = (Lamp)reactDevice;
+            lamp.condition = condition;
+            lamp.deviceInfo.getStatus = false;
         }
     }
 
@@ -606,22 +686,22 @@ public class Main {
         urlStr = args[0];
         adressStr = args[1];
         httpURLConnection = connect(urlStr, adressStr);
-        whoIsHere();
+        //whoIsHere();
         int responceCode = 200;
+        Scanner in = new Scanner(System.in);
         while(responceCode == 200){
             String line = null;
             try {
                 //BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
                 //responceCode = httpURLConnection.getResponseCode();
                 //line = input.readLine();
-                line = "OAL_fwQCAghTRU5TT1IwMQ8EDGQGT1RIRVIxD7AJBk9USEVSMgCsjQYGT1RIRVIzCAAGT1RIRVI09w";
+                line = in.nextLine();
                 //input.close();
             }
             catch (Exception e){
                 System.exit(99);
             }
             if(line == null){
-                httpURLConnection = connect(urlStr, adressStr);
                 continue;
             }
             byte[] decoded_line = Base64.getUrlDecoder().decode(line);
@@ -653,14 +733,14 @@ public class Main {
                         break;
                 }
             }
-            httpURLConnection = connect(urlStr, adressStr);
+           /* httpURLConnection = connect(urlStr, adressStr);
             for(SmartDevice device : devices){
                 if(device.getDeviceInfo().getStatus == false){
                     device.getDeviceInfo().getStatus = true;
                     getFirstStatus(device);
                 }
             }
-            executePost();
+            executePost();*/
         }
         if(responceCode == 204){
             httpURLConnection.disconnect();
