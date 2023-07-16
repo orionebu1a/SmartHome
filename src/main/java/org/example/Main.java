@@ -34,7 +34,6 @@ public class Main {
             res[0] = (byte)p.length;
             System.arraycopy(p, 0, res, 1, p.length);
             res[p.length + 1] = calculateCRC8(p);
-            counter++;
             return(res);
         }
 
@@ -169,7 +168,7 @@ public class Main {
         }
 
 
-        public byte[] encoder(){
+        public byte[] encoder (){
             int i = 0;
             int srcAdd = 0, dstAdd = 0, serAdd = 0;
             if(src > 127){
@@ -178,7 +177,7 @@ public class Main {
             if(dst > 127){
                 dstAdd++;
             }
-            if(serial > 128){
+            if(serial > 127){
                 serAdd++;
             }
             byte[] res = new byte[cmd_body.length + 5 + srcAdd + dstAdd + serAdd];
@@ -245,9 +244,6 @@ public class Main {
                     if(device.getDeviceInfo().name.equals(turnable)){
                         Payload payload = new Payload(Integer.parseInt(adressStr), device.getDeviceInfo().dev_code, counter, device.getDeviceInfo().type, (byte)0x05, (condition) ? new byte[]{1} : new byte[]{0});
                         byte[] request = new Packet(payload).encoder();
-                        if(request[request.length - 1] == '='){
-                            request = Arrays.copyOfRange(request, 0, request.length - 1);
-                        }
                         byte[] resRequest = Arrays.copyOf(fullRequest, fullRequest.length + request.length);
                         System.arraycopy(request, 0, resRequest, fullRequest.length, request.length);
                         fullRequest = resRequest;
@@ -358,6 +354,7 @@ public class Main {
             writer.write(rightEncoded.getBytes());
             writer.flush();
             writer.close();
+            counter++;
         }
         catch(IOException e){
             e.printStackTrace();
@@ -390,7 +387,10 @@ public class Main {
             writer.write(coded.getBytes());
             writer.flush();
             writer.close();
+            lastRequest = fullRequest;
+            lastCoded = coded;
             fullRequest = new byte[0];
+            counter++;
         }
         catch(IOException e){
             e.printStackTrace();
@@ -504,6 +504,10 @@ public class Main {
     private static String urlStr;
 
     private static byte[] fullRequest = new byte[0];
+
+    private static byte[] lastRequest = new byte[0];
+
+    private static String lastCoded;
 
 
     public static void main(String[] args) {
