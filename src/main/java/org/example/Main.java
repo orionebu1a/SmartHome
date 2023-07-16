@@ -132,19 +132,11 @@ public class Main {
             return i;
         }
 
-        public static int decode128_time(int[] num, int i, byte[] res){
-            num[0] = (int) res[i];
+        public static int decode128_time(long[] num, int i, byte[] res){
+            num[0] = res[i];
             i++;
             if (num[0] < 0) {
-                int cur = res[i];
-                i++;
-                num[0] = (num[0] & 0x7f) | ((cur & 0x7f) << 7);
-            }
-
-            num[0] = (int) res[i];
-            i++;
-            if (num[0] < 0) {
-                int cur = res[i];
+                long cur = res[i];
                 i++;
                 num[0] = (num[0] & 0x7f) | ((cur & 0x7f) << 7);
                 if (cur < 0) {
@@ -155,10 +147,15 @@ public class Main {
                         cur = res[i];
                         i++;
                         num[0] |= (cur & 0x7f) << 21;
-                        if (cur > 0x7f) {
+                        if (cur < 0) {
                             cur = res[i];
                             i++;
-                            num[0] |= cur << 28;
+                            num[0] |= (cur & 0x7f) << 28;
+                            if (cur < 0) {
+                                cur = res[i];
+                                i++;
+                                num[0] |= (cur & 0x7f) << 35;
+                            }
                         }
                     }
                 }
@@ -365,8 +362,7 @@ public class Main {
             writer.close();
             counter++;
         }
-        catch(IOException e){
-            e.printStackTrace();
+        catch(Exception e){
             System.exit(99);
         }
     }
@@ -398,17 +394,25 @@ public class Main {
             fullRequest = new byte[0];
             counter++;
         }
-        catch(IOException e){
-            e.printStackTrace();
+        catch(Exception e){
             System.exit(99);
         }
     }
 
     public static void writeTime(Packet packet){
-
+        byte[] cmd_body = packet.payload.cmd_body;
+        long[] num = new long[1];
+        Payload.decode128_time(num, 0, cmd_body);
+        time = new Timestamp(num[0]);
     }
 
     private static void replyWhoIsHere(Packet packet) {
+        Payload payload = new Payload(Integer.parseInt(adressStr), packet.payload.src, counter, (byte)0x01, (byte)0x02, new byte[0]);
+        byte[] request = new Packet(payload).encoder();
+        byte[] resRequest = Arrays.copyOf(fullRequest, fullRequest.length + request.length);
+        System.arraycopy(request, 0, resRequest, fullRequest.length, request.length);
+        fullRequest = resRequest;
+        addDevice(packet);
     }
 
     private static void setStatus(Packet packet) {
@@ -468,7 +472,6 @@ public class Main {
                 }
                 break;
             case 6:
-
                 break;
         }
     }
@@ -531,14 +534,12 @@ public class Main {
         while(responceCode == 200){
             String line = null;
             try {
-                //httpURLConnection = connect(urlStr, adressStr);
                 BufferedReader input = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
                 responceCode = httpURLConnection.getResponseCode();
                 line = input.readLine();
                 input.close();
             }
-            catch (IOException e){
-                e.printStackTrace();
+            catch (Exception e){
                 System.exit(99);
             }
             if(line == null){
